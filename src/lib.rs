@@ -3,6 +3,10 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+const ANSI_RED: &str = "\x1b[31m";
+const ANSI_GREEN: &str = "\x1b[32m";
+const ANSI_RESET: &str = "\x1b[0m";
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Issue {
     pub line: usize,
@@ -70,6 +74,14 @@ struct FenceState {
     marker: char,
     len: usize,
     list_indent: Option<usize>,
+    info: String,
+    nested: Vec<NestedFence>,
+}
+
+#[derive(Clone, Debug)]
+struct NestedFence {
+    marker: char,
+    len: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -77,6 +89,19 @@ struct FenceMarker {
     marker: char,
     len: usize,
     indent: usize,
+    info: String,
+}
+
+impl FenceState {
+    fn new(marker: FenceMarker, list_indent: Option<usize>) -> Self {
+        Self {
+            marker: marker.marker,
+            len: marker.len,
+            list_indent,
+            info: marker.info,
+            nested: Vec::new(),
+        }
+    }
 }
 
 pub fn fix_markdown(input: &str) -> FixResult {
@@ -284,7 +309,8 @@ fn run_fix_stdout(path: &Path, out: &mut dyn Write, err: &mut dyn Write) -> i32 
     match fs::read_to_string(path) {
         Ok(content) => {
             let fixed = fix_markdown(&content);
-            let _ = write!(out, "{}", fixed.content);
+            let diff = colored_diff(path, &content, &fixed.content);
+            let _ = write!(out, "{diff}");
             0
         }
         Err(error) => {
@@ -307,18 +333,13 @@ fn run_write(files: &[PathBuf], out: &mut dyn Write, err: &mut dyn Write) -> i32
             Ok(content) => {
                 let fixed = fix_markdown(&content);
                 if fixed.content == content {
-                    let _ = writeln!(out, "{}: OK", file.display());
                     continue;
                 }
 
                 match fs::write(file, fixed.content.as_bytes()) {
                     Ok(()) => {
-                        let _ = writeln!(
-                            out,
-                            "{}: fixed {} issue(s)",
-                            file.display(),
-                            fixed.issues.len()
-                        );
+                        let diff = colored_diff(file, &content, &fixed.content);
+                        let _ = write!(out, "{diff}");
                     }
                     Err(error) => {
                         has_error = true;
@@ -338,6 +359,152 @@ fn run_write(files: &[PathBuf], out: &mut dyn Write, err: &mut dyn Write) -> i32
     } else {
         0
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DiffOp<'old, 'new> {
+    Equal,
+    Delete(&'old str),
+    Insert(&'new str),
+}
+
+fn colored_diff(path: &Path, old: &str, new: &str) -> String {
+    if old == new {
+        return String::new();
+    }
+
+    let old_lines = split_diff_lines(old);
+    let new_lines = split_diff_lines(new);
+    let ops = diff_ops(&old_lines, &new_lines);
+    let mut body = String::new();
+
+    let mut old_line = 1usize;
+    let mut new_line = 1usize;
+    let mut idx = 0usize;
+
+    while idx < ops.len() {
+        if ops[idx] == DiffOp::Equal {
+            old_line += 1;
+            new_line += 1;
+            idx += 1;
+            continue;
+        }
+
+        let old_start = old_line;
+        let new_start = new_line;
+        let mut old_len = 0usize;
+        let mut new_len = 0usize;
+        let mut hunk = Vec::new();
+
+        while idx < ops.len() {
+            match ops[idx] {
+                DiffOp::Equal => break,
+                DiffOp::Delete(text) => {
+                    old_len += 1;
+                    old_line += 1;
+                    hunk.push(DiffOp::Delete(text));
+                }
+                DiffOp::Insert(text) => {
+                    new_len += 1;
+                    new_line += 1;
+                    hunk.push(DiffOp::Insert(text));
+                }
+            }
+            idx += 1;
+        }
+
+        body.push_str(&format!(
+            "@@ -{},{} +{},{} @@\n",
+            old_start, old_len, new_start, new_len
+        ));
+
+        for op in hunk {
+            match op {
+                DiffOp::Delete(text) => {
+                    body.push_str(ANSI_RED);
+                    body.push('-');
+                    body.push_str(text);
+                    body.push_str(ANSI_RESET);
+                    body.push('\n');
+                }
+                DiffOp::Insert(text) => {
+                    body.push_str(ANSI_GREEN);
+                    body.push('+');
+                    body.push_str(text);
+                    body.push_str(ANSI_RESET);
+                    body.push('\n');
+                }
+                DiffOp::Equal => {}
+            }
+        }
+    }
+
+    if body.is_empty() {
+        return String::new();
+    }
+
+    let mut diff = String::new();
+    diff.push_str(&format!("diff -- mmf {}\n", path.display()));
+    diff.push_str(&format!("--- {}\n", path.display()));
+    diff.push_str(&format!("+++ {} (fixed)\n", path.display()));
+    diff.push_str(&body);
+    diff
+}
+
+fn split_diff_lines(content: &str) -> Vec<&str> {
+    content.lines().collect()
+}
+
+fn diff_ops<'old, 'new>(
+    old_lines: &[&'old str],
+    new_lines: &[&'new str],
+) -> Vec<DiffOp<'old, 'new>> {
+    let old_len = old_lines.len();
+    let new_len = new_lines.len();
+    let stride = new_len + 1;
+    let mut lcs = vec![0usize; (old_len + 1) * (new_len + 1)];
+
+    for old_idx in (0..old_len).rev() {
+        for new_idx in (0..new_len).rev() {
+            let index = old_idx * stride + new_idx;
+            if old_lines[old_idx] == new_lines[new_idx] {
+                lcs[index] = lcs[(old_idx + 1) * stride + new_idx + 1] + 1;
+            } else {
+                lcs[index] =
+                    lcs[(old_idx + 1) * stride + new_idx].max(lcs[old_idx * stride + new_idx + 1]);
+            }
+        }
+    }
+
+    let mut ops = Vec::new();
+    let mut old_idx = 0usize;
+    let mut new_idx = 0usize;
+
+    while old_idx < old_len && new_idx < new_len {
+        if old_lines[old_idx] == new_lines[new_idx] {
+            ops.push(DiffOp::Equal);
+            old_idx += 1;
+            new_idx += 1;
+        } else if lcs[(old_idx + 1) * stride + new_idx] >= lcs[old_idx * stride + new_idx + 1] {
+            ops.push(DiffOp::Delete(old_lines[old_idx]));
+            old_idx += 1;
+        } else {
+            ops.push(DiffOp::Insert(new_lines[new_idx]));
+            new_idx += 1;
+        }
+    }
+
+    while old_idx < old_len {
+        ops.push(DiffOp::Delete(old_lines[old_idx]));
+        old_idx += 1;
+    }
+
+    while new_idx < new_len {
+        ops.push(DiffOp::Insert(new_lines[new_idx]));
+        new_idx += 1;
+    }
+
+    ops
 }
 
 fn collect_inputs(paths: &[PathBuf], recursive: bool) -> io::Result<Vec<PathBuf>> {
@@ -393,7 +560,7 @@ fn normalize_indentation(lines: &mut [Line], issues: &mut Vec<Issue>) {
         let line_number = lines[idx].issue_line(idx + 1);
         let current_text = lines[idx].text.clone();
 
-        if let Some(state) = &fence {
+        if let Some(state) = &mut fence {
             if let Some(required_indent) = state.list_indent {
                 let leading = count_leading_spaces(&current_text);
                 if !current_text.trim().is_empty() && leading < required_indent {
@@ -406,7 +573,7 @@ fn normalize_indentation(lines: &mut [Line], issues: &mut Vec<Issue>) {
                 }
             }
 
-            if closes_fence(&lines[idx].text, state) {
+            if advances_or_closes_fence(state, &lines[idx].text) {
                 fence = None;
             }
             continue;
@@ -429,11 +596,7 @@ fn normalize_indentation(lines: &mut [Line], issues: &mut Vec<Issue>) {
                 }
             }
 
-            fence = Some(FenceState {
-                marker: marker.marker,
-                len: marker.len,
-                list_indent,
-            });
+            fence = Some(FenceState::new(marker, list_indent));
             continue;
         }
 
@@ -482,9 +645,9 @@ fn ensure_blank_lines(lines: &mut Vec<Line>, issues: &mut Vec<Issue>) {
         let line = lines[idx].clone();
         let line_number = line.issue_line(idx + 1);
 
-        if let Some(state) = &fence {
+        if let Some(state) = &mut fence {
             output.push(line.clone());
-            if closes_fence(&line.text, state) {
+            if advances_or_closes_fence(state, &line.text) {
                 fence = None;
                 if next_exists_and_not_blank(lines, idx) {
                     output.push(Line::blank());
@@ -523,11 +686,7 @@ fn ensure_blank_lines(lines: &mut Vec<Line>, issues: &mut Vec<Issue>) {
                 ));
             }
             output.push(line.clone());
-            fence = Some(FenceState {
-                marker: marker.marker,
-                len: marker.len,
-                list_indent: None,
-            });
+            fence = Some(FenceState::new(marker, None));
             idx += 1;
             continue;
         }
@@ -627,6 +786,19 @@ fn ensure_blank_lines(lines: &mut Vec<Line>, issues: &mut Vec<Issue>) {
                     "list block must be preceded by a blank line",
                 ));
             }
+
+            output.push(line);
+
+            if list_block_ends_before(lines, idx, marker) {
+                output.push(Line::blank());
+                issues.push(Issue::new(
+                    line_number,
+                    "list block must be followed by a blank line",
+                ));
+            }
+
+            idx += 1;
+            continue;
         }
 
         output.push(line);
@@ -647,8 +819,8 @@ Usage:
 
 Commands:
   check    Report line numbers and descriptions for non-compliant Markdown.
-  fix      Print fixed Markdown to stdout for one file.
-  write    Fix files in place. Directories process *.md files.
+  fix      Print a colored diff for one file without modifying it.
+  write    Print the same diff and fix files in place. Directories process *.md files.
   help     Print this help text.
 
 Interactive shell:
@@ -757,17 +929,63 @@ fn fence_marker(text: &str) -> Option<FenceMarker> {
         return None;
     }
 
+    let info = rest
+        .char_indices()
+        .nth(len)
+        .map(|(idx, _)| rest[idx..].trim().to_string())
+        .unwrap_or_default();
+
     Some(FenceMarker {
         marker,
         len,
         indent,
+        info,
     })
 }
 
-fn closes_fence(text: &str, state: &FenceState) -> bool {
+fn advances_or_closes_fence(state: &mut FenceState, text: &str) -> bool {
+    if is_markdown_fence_info(&state.info) {
+        if let Some(nested) = state.nested.last() {
+            if is_closing_fence(text, nested.marker, nested.len) {
+                state.nested.pop();
+            }
+            return false;
+        }
+
+        if is_closing_fence(text, state.marker, state.len) {
+            return true;
+        }
+
+        if let Some(marker) = fence_marker(text) {
+            if !marker.info.is_empty() {
+                state.nested.push(NestedFence {
+                    marker: marker.marker,
+                    len: marker.len,
+                });
+            }
+        }
+
+        return false;
+    }
+
+    is_closing_fence(text, state.marker, state.len)
+}
+
+fn is_closing_fence(text: &str, marker: char, required_len: usize) -> bool {
     let rest = text.trim_start();
-    let len = rest.chars().take_while(|ch| *ch == state.marker).count();
-    len >= state.len
+    let len = rest.chars().take_while(|ch| *ch == marker).count();
+    if len < required_len {
+        return false;
+    }
+
+    rest.chars().skip(len).all(char::is_whitespace)
+}
+
+fn is_markdown_fence_info(info: &str) -> bool {
+    info.split_whitespace()
+        .next()
+        .map(|lang| lang.eq_ignore_ascii_case("markdown"))
+        .unwrap_or(false)
 }
 
 fn is_math_delimiter(text: &str) -> bool {
@@ -803,6 +1021,18 @@ fn next_exists_and_not_blank(lines: &[Line], idx: usize) -> bool {
         .get(idx + 1)
         .map(|line| !line.text.trim().is_empty())
         .unwrap_or(false)
+}
+
+fn list_block_ends_before(lines: &[Line], idx: usize, marker: ListMarker) -> bool {
+    let Some(next) = lines.get(idx + 1) else {
+        return false;
+    };
+
+    if next.text.trim().is_empty() || list_marker(&next.text).is_some() {
+        return false;
+    }
+
+    count_leading_spaces(&next.text) <= marker.indent
 }
 
 fn is_probably_in_list(lines: &[Line], idx: usize) -> bool {
@@ -853,6 +1083,26 @@ mod tests {
     }
 
     #[test]
+    fn inserts_blank_after_top_level_list() {
+        let input = "Intro:\n\n- item\nEnd\n";
+        let fixed = fix_markdown(input);
+
+        assert_eq!(fixed.content, "Intro:\n\n- item\n\nEnd\n");
+        assert!(fixed
+            .issues
+            .iter()
+            .any(|issue| issue.message.contains("followed by a blank line")));
+    }
+
+    #[test]
+    fn does_not_split_nested_list_items() {
+        let input = "- item\n    - child\n- next\nEnd\n";
+        let fixed = fix_markdown(input);
+
+        assert_eq!(fixed.content, "- item\n    - child\n- next\n\nEnd\n");
+    }
+
+    #[test]
     fn normalizes_nested_list_indent() {
         let input = "- item\n  - child\n";
         let fixed = fix_markdown(input);
@@ -882,6 +1132,15 @@ mod tests {
             fixed.content,
             "Before:\n\n```python\nprint('hi')\n```\n\nAfter\n"
         );
+    }
+
+    #[test]
+    fn does_not_insert_blank_lines_inside_fenced_code_block() {
+        let input = "```python\nprint(1)\n```\n";
+        let fixed = fix_markdown(input);
+
+        assert_eq!(fixed.content, input);
+        assert!(fixed.issues.is_empty());
     }
 
     #[test]
@@ -921,6 +1180,41 @@ mod tests {
 
         assert_eq!(fixed.content, input);
         assert!(fixed.issues.is_empty());
+    }
+
+    #[test]
+    fn ignores_nested_fences_inside_markdown_demo_block() {
+        let input = "```markdown\nText:\n```python\nprint(1)\n```\n- not checked\n```\n";
+        let fixed = fix_markdown(input);
+
+        assert_eq!(fixed.content, input);
+        assert!(fixed.issues.is_empty());
+    }
+
+    #[test]
+    fn colored_diff_prints_only_changed_lines() {
+        let diff = colored_diff(
+            Path::new("sample.md"),
+            "- item\n  - child\n",
+            "- item\n    - child\n",
+        );
+
+        assert!(diff.contains("\x1b[31m-  - child\x1b[0m"));
+        assert!(diff.contains("\x1b[32m+    - child\x1b[0m"));
+        assert!(!diff.contains("\n- item\n"));
+    }
+
+    #[test]
+    fn colored_diff_shows_inserted_blank_line() {
+        let diff = colored_diff(
+            Path::new("sample.md"),
+            "Intro:\n- item\n",
+            "Intro:\n\n- item\n",
+        );
+
+        assert!(diff.contains("@@ -2,0 +2,1 @@"));
+        assert!(diff.contains("\x1b[32m+\x1b[0m"));
+        assert!(!diff.contains("Intro:"));
     }
 
     #[test]

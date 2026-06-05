@@ -4,7 +4,7 @@
 
 The implemented rules follow [docs/specification.md](docs/specification.md):
 
-- blank line before list blocks
+- blank line before and after list blocks
 - nested list indentation normalized to multiples of four spaces
 - blank lines and four-space indentation for block quotes inside list items
 - blank lines and four-space indentation for fenced code blocks inside list items
@@ -29,7 +29,7 @@ mmf help
 
 `<path>` may be a Markdown file or a directory. Directories are processed non-recursively by default; add `-r` to include subdirectories.
 
-`fix` writes the repaired Markdown to standard output for a single file. Use `write` to update files in place.
+`fix` prints a colored diff for a single file without modifying it. Use `write` to print the same diff and update files in place.
 
 ## Interactive Shell
 
