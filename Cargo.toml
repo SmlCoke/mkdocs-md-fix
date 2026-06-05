@@ -1,0 +1,20 @@
+[package]
+name = "mkdocs-md-fix"
+version = "1.0.0"
+edition = "2021"
+authors = ["SmlCoke"]
+description = "Markdown linting and fixing suite for MkDocs"
+repository = "https://github.com/SmlCoke/mkdocs-md-fix"
+license = "MIT"
+
+[lib]
+name = "mmf"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mmf"
+path = "src/main.rs"
+
+[[bin]]
+name = "mmf_shell"
+path = "src/bin/mmf_shell.rs"
