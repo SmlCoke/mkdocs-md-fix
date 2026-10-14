@@ -36,9 +36,11 @@ jobs:
           python-version: "3.12"
       - name: Install pinned Rust toolchain
         run: |
-          rustup toolchain install 1.93.1 --profile minimal --no-self-update
+          rustup toolchain install 1.93.1 --profile minimal --component rustfmt --no-self-update
           rustup default 1.93.1
           rustup target add '${{ matrix.target }}'
+      - name: Check formatting
+        run: cargo fmt --check
       - name: Test
         run: cargo test --locked --target '${{ matrix.target }}'
       - name: Build both executables

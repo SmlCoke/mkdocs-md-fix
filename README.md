@@ -2,9 +2,9 @@
 
 中文 | [English](README_EN.md)
 
-**Mkdocs Markdown Fixer（mmf）** 是用 Rust 编写的 Markdown 检查与修复工具，针对编辑器预览正常、在 MkDocs 中却可能渲染异常的空行和缩进写法，帮助统一文档源文件。
+**Mkdocs Markdown Fixer（mmf）** 是用 Rust 编写的 Markdown 检查与修复工具，针对编辑器预览正常、在 MkDocs 中却可能渲染异常的空行、缩进和正文异常空格写法，帮助统一文档源文件。
 
-当前版本：**0.1.0**。提供单行命令工具 `mmf` 和交互工具 `mmf_shell`，采用 MIT 许可证。运行时无需 MkDocs；实际网页渲染仍取决于项目的 Markdown 扩展与配置。
+当前版本：**0.1.1**。提供单行命令工具 `mmf` 和交互工具 `mmf_shell`，采用 MIT 许可证。运行时无需 MkDocs；实际网页渲染仍取决于项目的 Markdown 扩展与配置。
 
 ## 处理哪些问题
 
@@ -19,51 +19,52 @@
 | 行间公式 | `$$...$$` 单行形式及独立 `$$` 包围的多行形式前后补空行 |
 | 围栏代码块 | 代码块整体前后补空行 |
 | Markdown 表格 | 表格块前后补空行 |
+| 正文空格 | 删除中文及中文标点之间的空格，将正文连续空格压成一个 |
 
-行内公式不增加额外规则。围栏代码块中的 Markdown 示例不会按正文规则修复；列表内代码块的必要缩进会调整。表格识别针对以 `|` 开始和结束的连续行。本工具采用文本规则，没有完整 Markdown 语法树，不承担通用 Markdown 校验或 MkDocs 构建验证。
+行内代码、围栏代码和公式内部的空格保持不变；不主动添加中英文或数字之间的空格。Markdown 结构性缩进、列表标记后的填充及行尾换行标记保留。行内公式不增加额外格式规则。围栏代码块中的 Markdown 示例不会按正文规则修复；列表内代码块的必要缩进会调整。表格识别针对以 `|` 开始和结束的连续行。本工具采用文本规则，没有完整 Markdown 语法树，不承担通用 Markdown 校验或 MkDocs 构建验证。
 
 ## 安装与稳定版本
 
 ### 下载 GitHub Release（无需 Rust）
 
-从 [v0.1.0 Release](https://github.com/SmlCoke/mkdocs-md-fix/releases/tag/v0.1.0) 下载对应系统和 CPU 架构的压缩包：
+从 [v0.1.1 Release](https://github.com/SmlCoke/mkdocs-md-fix/releases/tag/v0.1.1) 下载对应系统和 CPU 架构的压缩包：
 
 | 系统 / 架构 | 文件 |
 | --- | --- |
-| Windows x64 | `mmf-v0.1.0-x86_64-pc-windows-msvc.zip` |
-| Linux x64 | `mmf-v0.1.0-x86_64-unknown-linux-gnu.tar.gz` |
-| macOS Intel | `mmf-v0.1.0-x86_64-apple-darwin.tar.gz` |
-| macOS Apple Silicon | `mmf-v0.1.0-aarch64-apple-darwin.tar.gz` |
+| Windows x64 | `mmf-v0.1.1-x86_64-pc-windows-msvc.zip` |
+| Linux x64 | `mmf-v0.1.1-x86_64-unknown-linux-gnu.tar.gz` |
+| macOS Intel | `mmf-v0.1.1-x86_64-apple-darwin.tar.gz` |
+| macOS Apple Silicon | `mmf-v0.1.1-aarch64-apple-darwin.tar.gz` |
 
 每个包包含 `mmf`、`mmf_shell`（Windows 下带 `.exe`）、中英文说明、命令手册、规格书和许可证。Linux 包在 Ubuntu 22.04 上构建和测试，适用于兼容的 glibc 系统；macOS 包以 macOS 11.0 为最低部署目标。其他系统、架构可从源码编译。
 
 Windows 示例（在下载文件所在目录执行）：
 
 ```powershell
-Expand-Archive .\mmf-v0.1.0-x86_64-pc-windows-msvc.zip -DestinationPath D:\Tools
-& D:\Tools\mmf-v0.1.0-x86_64-pc-windows-msvc\mmf.exe help
+Expand-Archive .\mmf-v0.1.1-x86_64-pc-windows-msvc.zip -DestinationPath D:\Tools
+& D:\Tools\mmf-v0.1.1-x86_64-pc-windows-msvc\mmf.exe help
 ```
 
-将解压后的版本目录加入用户 PATH，例如 `D:\Tools\mmf-v0.1.0-x86_64-pc-windows-msvc`，重新打开终端后即可直接使用。若 PATH 中还有仓库的 `target\debug`，应移除该项或确保稳定版本目录优先；可用 `Get-Command mmf` 确认实际程序路径。
+将解压后的版本目录加入用户 PATH，例如 `D:\Tools\mmf-v0.1.1-x86_64-pc-windows-msvc`，重新打开终端后即可直接使用。若 PATH 中还有仓库的 `target\debug`，应移除该项或确保稳定版本目录优先；可用 `Get-Command mmf` 确认实际程序路径。
 
 Linux 示例（macOS 替换为对应压缩包和目录名）：
 
 ```sh
 mkdir -p "$HOME/.local/opt"
-tar -xzf mmf-v0.1.0-x86_64-unknown-linux-gnu.tar.gz -C "$HOME/.local/opt"
-export PATH="$HOME/.local/opt/mmf-v0.1.0-x86_64-unknown-linux-gnu:$PATH"
+tar -xzf mmf-v0.1.1-x86_64-unknown-linux-gnu.tar.gz -C "$HOME/.local/opt"
+export PATH="$HOME/.local/opt/mmf-v0.1.1-x86_64-unknown-linux-gnu:$PATH"
 mmf help
 ```
 
 可将 PATH 设置加入自己的 shell 配置以持久生效。Release 还提供源码 `.zip` / `.tar.gz`、单独的 `spec.md` 和 `SHA256SUMS`。校验示例：
 
 ```powershell
-Get-FileHash .\mmf-v0.1.0-x86_64-pc-windows-msvc.zip -Algorithm SHA256
+Get-FileHash .\mmf-v0.1.1-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 ```
 
 ```sh
-sha256sum mmf-v0.1.0-x86_64-unknown-linux-gnu.tar.gz
-# macOS: shasum -a 256 mmf-v0.1.0-aarch64-apple-darwin.tar.gz
+sha256sum mmf-v0.1.1-x86_64-unknown-linux-gnu.tar.gz
+# macOS: shasum -a 256 mmf-v0.1.1-aarch64-apple-darwin.tar.gz
 ```
 
 将结果与 `SHA256SUMS` 中对应文件的值比较。
@@ -73,13 +74,13 @@ sha256sum mmf-v0.1.0-x86_64-unknown-linux-gnu.tar.gz
 先安装 [Rust 工具链](https://www.rust-lang.org/tools/install)，然后运行：
 
 ```sh
-cargo install --git https://github.com/SmlCoke/mkdocs-md-fix --tag v0.1.0 --locked --bins
+cargo install --git https://github.com/SmlCoke/mkdocs-md-fix --tag v0.1.1 --locked --bins
 ```
 
 两个程序安装到 Cargo 安装根目录的 `bin` 子目录，默认通常为 `$HOME/.cargo/bin`，设置了 `CARGO_HOME` 时则使用该目录。也可以指定独立目录：
 
 ```sh
-cargo install --git https://github.com/SmlCoke/mkdocs-md-fix --tag v0.1.0 --locked --bins --root ./mmf-0.1.0
+cargo install --git https://github.com/SmlCoke/mkdocs-md-fix --tag v0.1.1 --locked --bins --root ./mmf-0.1.1
 ```
 
 将其 `bin` 子目录加入 PATH。指定 tag 的安装副本不受开发仓库后续编译影响；只有主动重新安装或替换副本才会更新。参数见 [Cargo 官方安装文档](https://doc.rust-lang.org/cargo/commands/cargo-install.html)。
@@ -89,7 +90,7 @@ cargo install --git https://github.com/SmlCoke/mkdocs-md-fix --tag v0.1.0 --lock
 ```sh
 git clone https://github.com/SmlCoke/mkdocs-md-fix.git
 cd mkdocs-md-fix
-git checkout v0.1.0
+git checkout v0.1.1
 cargo test --locked
 cargo build --release --locked --bins
 ```
@@ -154,13 +155,31 @@ mkdocs-md-fix/
 │   ├── workflows/release.yml      # 各平台原生测试、构建与制品上传
 │   └── scripts/package_release.py # 打包程序、文档并验证发布包
 ├── src/
-│   ├── lib.rs                     # 核心规则、命令处理、差异输出、单元测试
+│   ├── lib.rs                     # 模块声明与公开接口导出
+│   ├── markdown.rs                # Markdown 修复流程
+│   ├── model.rs                   # Issue / FixResult 类型
+│   ├── syntax.rs                  # 行、列表、围栏等共享语法识别
+│   ├── syntax/protected.rs        # 代码、公式及结构性空格的保护区域
+│   ├── rules/                     # 按职责拆分的规则算法
+│   │   ├── mod.rs                 # 规则调度与块边界辅助函数
+│   │   ├── lists.rs               # 列表空行与嵌套缩进
+│   │   ├── quotes.rs              # 列表内引用
+│   │   ├── code.rs                # 围栏代码块
+│   │   ├── math.rs                # 行间公式空行
+│   │   ├── tables.rs              # 表格空行
+│   │   └── spacing.rs             # 正文异常空格（spec 5.1）
+│   ├── cli.rs                     # 命令解析与执行
+│   ├── files.rs                   # 文件收集与目录遍历
+│   ├── diff.rs                    # 彩色差异计算与输出
+│   ├── shell.rs                   # 交互输入分词
+│   ├── regression_tests.rs        # 原有行为的回归测试
 │   ├── main.rs                    # mmf 单行命令入口
 │   └── bin/mmf_shell.rs           # 交互 shell 入口与欢迎页
 ├── docs/
 │   ├── spec.md                    # Markdown 写法规格书
 │   ├── usage.md                   # 中文命令手册
 │   └── usage_EN.md                # 英文命令手册
+├── AGENTS.md                     # Agent 中文工作准则
 ├── Cargo.toml                    # 包版本、库与两个可执行目标
 ├── Cargo.lock                    # 锁定包版本信息
 ├── README.md                     # 中文项目说明
@@ -171,11 +190,12 @@ mkdocs-md-fix/
 └── dist/                         # 本地发布制品，不入库
 ```
 
-`docs/prompts/` 是被忽略的本地任务材料，不随源码发布。测试目前位于 `src/lib.rs` 的 `#[cfg(test)]` 模块，没有独立的受版本管理的 `tests/` 目录。
+`docs/prompts/` 是被忽略的本地任务材料，不随源码发布。原有回归测试位于 `src/regression_tests.rs`，新规则测试随对应规则模块维护；没有独立的受版本管理的 `tests/` 目录。Agent 工作要求见 [AGENTS.md](AGENTS.md)。
 
 ## 开发与许可证
 
 ```sh
+cargo fmt --check
 cargo test --locked
 cargo build --release --locked --bins
 ```

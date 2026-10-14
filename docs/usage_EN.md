@@ -2,7 +2,7 @@
 
 [中文](usage.md) | English · [Back to README](../README_EN.md)
 
-Applies to **0.1.0**. See [spec.md](spec.md) for formatting rules and examples. This guide describes the current implementation.
+Applies to **0.1.1**. See [spec.md](spec.md) for formatting rules and examples. This guide describes the current implementation.
 
 ## Two modes
 
@@ -89,6 +89,30 @@ Changed files are saved before their diffs are printed. Unchanged files are neit
 Returns `0` on success or `2` on error. A read/write error for one file does not stop processing the remaining files, so some files may already have been saved when the command fails.
 
 Input must be UTF-8. Output uses LF line endings; nonempty output preserves whether the input had a trailing newline. A CRLF file may be rewritten solely to normalize line endings even if `check` reports no formatting issues. Since the diff compares line contents, this change may produce no visible diff.
+
+## Abnormal prose spaces (spec 5.1)
+
+`check`, `fix` and `write` all apply this rule without an additional option:
+
+- Remove ordinary ASCII spaces between Chinese characters or Chinese punctuation: `内 存` → `内存`, `中文 ， 正文` → `中文，正文`.
+- Collapse repeated prose spaces to one, then remove that space if both neighbors are Chinese characters or Chinese punctuation.
+- Keep single spaces between English words, Chinese and English, Chinese and numbers, or beside ASCII punctuation/special characters. Missing spaces are not inserted.
+- Preserve spaces in inline, fenced and indented code, and in math. Math protection covers `$...$`, `$$...$$`, `\(...\)` and `\[...\]`.
+- Preserve structural indentation, list-marker padding and trailing hard-break spaces. This rule does not convert tabs or fullwidth spaces to ASCII spaces.
+
+For example:
+
+```markdown
+CXL.mem  允许主机处理器访问内 存。设备 1 使用 `a  b` 和 $x  + y$。
+```
+
+After `mmf write notes.md`:
+
+```markdown
+CXL.mem 允许主机处理器访问内存。设备 1 使用 `a  b` 和 $x  + y$。
+```
+
+`check` reports Chinese spacing or repeated-space issues on each affected original line. A line can produce both kinds of diagnostics. `fix` previews and `write` saves changes, using the exit codes described above.
 
 ## Paths and recursion
 

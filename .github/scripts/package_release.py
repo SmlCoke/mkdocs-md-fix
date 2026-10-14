@@ -25,8 +25,8 @@ def verify(package: Path, suffix: str, version: str) -> None:
 
     with tempfile.TemporaryDirectory(prefix="mmf-smoke-") as sample_dir:
         sample = Path(sample_dir) / "sample.md"
-        original = "Intro:\n- item\n  - child\nEnd\n"
-        expected = "Intro:\n\n- item\n    - child\n\nEnd\n"
+        original = "Intro:\n- item\n  - child\nEnd\n\nCXL.mem  允许主机处理器使用内 存。`中  文` $a  + b$\n"
+        expected = "Intro:\n\n- item\n    - child\n\nEnd\n\nCXL.mem 允许主机处理器使用内存。`中  文` $a  + b$\n"
         sample.write_bytes(original.encode("utf-8"))
         checked = subprocess.run([str(mmf), "check", str(sample)], capture_output=True)
         if checked.returncode != 1:
@@ -36,7 +36,7 @@ def verify(package: Path, suffix: str, version: str) -> None:
             raise RuntimeError("fix must preview a diff without changing the file")
         subprocess.run([str(mmf), "write", str(sample)], capture_output=True, check=True)
         if sample.read_bytes() != expected.encode():
-            raise RuntimeError("write did not apply the specified list rules")
+            raise RuntimeError("write did not apply list/prose rules or preserve code/math")
         subprocess.run([str(mmf), "check", str(sample)], capture_output=True, check=True)
 
 
@@ -52,7 +52,7 @@ def main() -> None:
     output = root / "dist"
     output.mkdir(exist_ok=True)
     documents = [
-        "README.md", "README_EN.md", "LICENSE", "docs/spec.md",
+        "README.md", "README_EN.md", "AGENTS.md", "LICENSE", "docs/spec.md",
         "docs/usage.md", "docs/usage_EN.md",
         ".github/workflows/release.yml", ".github/scripts/package_release.py",
     ]

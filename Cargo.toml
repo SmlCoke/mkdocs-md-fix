@@ -1,6 +1,6 @@
 [package]
 name = "mkdocs-md-fix"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["SmlCoke"]
 description = "Markdown linting and fixing suite for MkDocs"
