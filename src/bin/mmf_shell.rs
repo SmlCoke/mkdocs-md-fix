@@ -59,7 +59,7 @@ fn print_welcome() {
         "",
         "A Markdown Linting and Fixing Suite for MkDocs",
         "",
-        "Version 1.0 - 2026-06-05",
+        concat!("Version ", env!("CARGO_PKG_VERSION")),
         "Author: SmlCoke",
         "Repository: https://github.com/SmlCoke/mkdocs-md-fix",
         "Copyright:",

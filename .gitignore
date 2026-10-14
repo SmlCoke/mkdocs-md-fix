@@ -3,6 +3,7 @@ tests/
 
 # Rust build output
 target/
+dist/
 
 # 开发方案
 dev_spec.md
