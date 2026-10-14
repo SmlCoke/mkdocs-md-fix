@@ -1,8 +1,10 @@
 # mkdocs-md-fix
 
-`mmf` is a small Rust CLI for checking and fixing Markdown syntax patterns that commonly render in editor previews but fail or mis-render in MkDocs.
+Mkdocs-MD-Fixer is a small Rust CLI for checking and fixing Markdown syntax patterns that commonly render in editor previews but fail or mis-render in MkDocs.
 
-The implemented rules follow [docs/specification.md](docs/specification.md):
+## I. Guidelines for Document Standardization
+
+The detailed implemented rules follow [docs/specification.md](docs/specification.md):
 
 - blank line before and after list blocks
 - nested list indentation normalized to multiples of four spaces
